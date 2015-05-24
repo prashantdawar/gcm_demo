@@ -15,6 +15,15 @@ import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.gcm.GoogleCloudMessaging;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Random;
 
 public class DemoActivity extends Activity{
 
@@ -31,6 +40,10 @@ public class DemoActivity extends Activity{
 
     //Put Sender Id Here . Sender Id obtained From Google Developer Console.
     private String SENDER_ID = "";
+    private String SERVER_URL = "";
+    private static final int BACKOFF_MILLI_SECONDS = 2000;
+    private static final int MAX_ATTEMPTS = 5;
+    private static final Random random = new Random();
 
 
     @Override
@@ -131,7 +144,7 @@ public class DemoActivity extends Activity{
 
                     Log.i("GCM ID", msg);
 
-                    sendRegistrationIdToBackend();
+                    sendRegistrationIdToBackend(regid);
                     storeRegistrationId(context, regid);
                 } catch (IOException ex){
                     msg = "Error 123: " + ex.getMessage();
@@ -147,7 +160,91 @@ public class DemoActivity extends Activity{
         }.execute();
     }
 
-    private void sendRegistrationIdToBackend() {
+    private void sendRegistrationIdToBackend(String regId) {
+        String serverURL = SERVER_URL;
+        Map<String, String> params = new HashMap<String, String>();
+
+        params.put("regId", regId);
+        params.put("name", "zorro");
+        params.put("email", "zorro_kty@erer.oru");
+
+
+
+        for (int i=0; i <= MAX_ATTEMPTS; i++){
+            Log.i(TAG, "Attempt # " + i  + " to register");
+
+                post(serverURL, params,i);
+        }
+
+    }
+
+    private void post(String endPoint, Map<String, String> params, int attempt) {
+
+        long backoff = BACKOFF_MILLI_SECONDS + random.nextInt(1000);
+
+        URL url;
+
+        try {
+            url =new URL(endPoint);
+
+        } catch (MalformedURLException e){
+            throw new IllegalArgumentException("invalid url: " + endPoint);
+        }
+
+        StringBuilder bodyBuilder = new StringBuilder();
+        Iterator<Entry<String, String>> iterator = params.entrySet().iterator();
+
+        //Construct the post body usingn parameters
+        while (iterator.hasNext()){
+            Entry<String, String> param = iterator.next();
+            bodyBuilder.append(param.getKey())
+                    .append('=')
+                    .append(param.getValue());
+            if (iterator.hasNext()){
+                bodyBuilder.append('&');
+            }
+        }
+        String body = bodyBuilder.toString();
+        Log.v(TAG, "Posting: " + body + " to " + url);
+        byte[] bytes = body.getBytes();
+        HttpURLConnection conn = null;
+        try {
+            Log.e("URL ", "> " + url);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setDoOutput(true);
+            conn.setUseCaches(false);
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application-x-www-form-urlencoded;charset=UTF-8");
+
+            //post the request
+            OutputStream out = conn.getOutputStream();
+            out.write(bytes);
+            out.close();
+            //handle the response
+            int status = conn.getResponseCode();
+            if (status != 200){
+                throw new IOException("Post failed with error code " +  status);
+            }
+            if (status == 200){
+                Log.v(TAG, "Device Registered to server");
+            }
+        } catch (IOException e){
+            Log.e(TAG, "Failed to register on attempt " + attempt + ":" + e);
+            try {
+                Log.d(TAG, "Sleeping for " + backoff + " ms before retry");
+                Thread.sleep(backoff);
+                backoff *= 5;
+            } catch (InterruptedException e1){
+                Log.d(TAG, "Thread interrupted: abort remaining retries!");
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+        } finally {
+                if (conn != null){
+                    conn.disconnect();
+                }
+        }
 
     }
 
