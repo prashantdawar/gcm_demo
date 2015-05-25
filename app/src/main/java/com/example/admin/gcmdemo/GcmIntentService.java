@@ -13,10 +13,6 @@ import android.util.Log;
 
 import com.google.android.gms.gcm.GoogleCloudMessaging;
 
-/**
- * Created by Admin on 5/24/2015.
- */
-
 
 public class GcmIntentService extends IntentService{
 
@@ -56,8 +52,8 @@ public class GcmIntentService extends IntentService{
                 }
                 Log.i(TAG, "Completed work @ " + SystemClock.elapsedRealtime());
 
-                sendNotification("Received: " + extras.toString());
-                Log.i(TAG, "Received: " + extras.toString());
+                sendNotification("Received: " + extras.getString("Notice"));
+                Log.i(TAG, "Received: " + extras.getString("Notice"));
             }
         }
 
